@@ -1,0 +1,873 @@
+{
+    "pipes": [],
+    "interfaces": [
+        {
+            "name": "ColorVariations",
+            "id": "interface-ColorVariations-acb8c0d17fe5cdcf3d90e6ec9c1e4038570f6f5586eb87d83c4f59817ae9a89654172c06b5b6dee8b5fdac9f67440d9d5df60d33dfe374a6ac44e14bec374858",
+            "file": "src/app/services/simple-color.service.ts",
+            "deprecated": false,
+            "deprecationMessage": "",
+            "type": "interface",
+            "sourceCode": "import { Injectable } from '@angular/core';\n\nexport interface ColorVariations {\n  primary: string;\n  light: string;\n  dark: string;\n}\n\n@Injectable({\n  providedIn: 'root'\n})\nexport class SimpleColorService {\n\n  constructor() { }\n\n  /**\n   * Parse hex color to RGB\n   */\n  private hexToRgb(hex: string): { r: number; g: number; b: number } {\n    const result = /^#?([a-f\\d]{2})([a-f\\d]{2})([a-f\\d]{2})$/i.exec(hex);\n    if (!result) return { r: 0, g: 0, b: 0 };\n    \n    return {\n      r: parseInt(result[1], 16),\n      g: parseInt(result[2], 16),\n      b: parseInt(result[3], 16)\n    };\n  }\n\n  /**\n   * Convert RGB to hex\n   */\n  private rgbToHex(r: number, g: number, b: number): string {\n    return \"#\" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);\n  }\n\n  /**\n   * Calculate luminance\n   */\n  private calculateLuminance(r: number, g: number, b: number): number {\n    const [rs, gs, bs] = [r, g, b].map(c => {\n      c = c / 255;\n      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);\n    });\n    return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;\n  }\n\n  /**\n   * Generate light and dark variations - simple approach\n   */\n  generateColorVariations(primaryColor: string): ColorVariations {\n    const rgb = this.hexToRgb(primaryColor);\n    const luminance = this.calculateLuminance(rgb.r, rgb.g, rgb.b);\n    \n    // Simple light variant: move towards white\n    const lightRgb = {\n      r: Math.round(rgb.r + (255 - rgb.r) * 0.85),\n      g: Math.round(rgb.g + (255 - rgb.g) * 0.85),\n      b: Math.round(rgb.b + (255 - rgb.b) * 0.85)\n    };\n    \n    // Simple dark variant: move towards black\n    // Make it darker for very light primary colors\n    const darkFactor = luminance > 0.4 ? 0.8 : 0.9;\n    const darkRgb = {\n      r: Math.round(rgb.r * darkFactor),\n      g: Math.round(rgb.g * darkFactor),\n      b: Math.round(rgb.b * darkFactor)\n    };\n    \n    // Ensure dark variant is dark enough for accessibility\n    const darkLuminance = this.calculateLuminance(darkRgb.r, darkRgb.g, darkRgb.b);\n    if (darkLuminance > 0.15) {\n      // Make it darker\n      darkRgb.r = Math.round(darkRgb.r * 0.9);\n      darkRgb.g = Math.round(darkRgb.g * 0.9);\n      darkRgb.b = Math.round(darkRgb.b * 0.9);\n    }\n    \n    return {\n      primary: primaryColor,\n      light: this.rgbToHex(lightRgb.r, lightRgb.g, lightRgb.b),\n      dark: this.rgbToHex(darkRgb.r, darkRgb.g, darkRgb.b)\n    };\n  }\n\n  /**\n   * Update CSS custom properties\n   */\n  updatePrimaryColors(variations: ColorVariations): void {\n    const root = document.documentElement;\n    root.style.setProperty('--color-primary', variations.primary);\n    root.style.setProperty('--color-primary-light', variations.light);\n    root.style.setProperty('--color-primary-dark', variations.dark);\n    \n    // Set text color for text on primary background\n    const primaryTextColor = this.getTextColor(variations.primary);\n    root.style.setProperty('--color-text-on-primary', primaryTextColor);\n  }\n\n  /**\n   * Set a new primary color\n   */\n  setPrimaryColor(color: string): void {\n    const variations = this.generateColorVariations(color);\n    this.updatePrimaryColors(variations);\n  }\n\n  /**\n   * Get current colors\n   */\n  getCurrentColors(): ColorVariations {\n    const root = document.documentElement;\n    const computedStyle = getComputedStyle(root);\n    \n    return {\n      primary: computedStyle.getPropertyValue('--color-primary').trim(),\n      light: computedStyle.getPropertyValue('--color-primary-light').trim(),\n      dark: computedStyle.getPropertyValue('--color-primary-dark').trim()\n    };\n  }\n\n  /**\n   * Validate color\n   */\n  isValidColor(color: string): boolean {\n    const s = new Option().style;\n    s.color = color;\n    return s.color !== '';\n  }\n\n  /**\n   * Get luminance values for debugging\n   */\n  getLuminanceValues(variations: ColorVariations): { primary: number; light: number; dark: number } {\n    const primaryRgb = this.hexToRgb(variations.primary);\n    const lightRgb = this.hexToRgb(variations.light);\n    const darkRgb = this.hexToRgb(variations.dark);\n    \n    return {\n      primary: this.calculateLuminance(primaryRgb.r, primaryRgb.g, primaryRgb.b),\n      light: this.calculateLuminance(lightRgb.r, lightRgb.g, lightRgb.b),\n      dark: this.calculateLuminance(darkRgb.r, darkRgb.g, darkRgb.b)\n    };\n  }\n\n  /**\n   * Get the best text color (black or white) for a given background color\n   * Ensures WCAG AA compliance (4.5:1 contrast ratio)\n   */\n  getTextColor(backgroundColor: string): string {\n    const rgb = this.hexToRgb(backgroundColor);\n    const bgLuminance = this.calculateLuminance(rgb.r, rgb.g, rgb.b);\n    \n    // Calculate contrast ratios for both black and white text\n    const blackTextLuminance = 0;\n    const whiteTextLuminance = 1;\n    \n    const blackContrast = this.calculateContrastRatio(bgLuminance, blackTextLuminance);\n    const whiteContrast = this.calculateContrastRatio(bgLuminance, whiteTextLuminance);\n    \n    // Use the color with better contrast ratio, ensuring AA compliance (4.5:1)\n    // Very strongly prefer white text for colored backgrounds\n    if (blackContrast >= 4.5 && blackContrast > whiteContrast * 3.0) {\n      return '#000000';\n    } else if (whiteContrast >= 4.5) {\n      return '#ffffff';\n    } else {\n      // If neither meets AA, still prefer white text unless black is much better\n      return blackContrast > whiteContrast * 1.5 ? '#000000' : '#ffffff';\n    }\n  }\n\n  /**\n   * Calculate contrast ratio between two luminances\n   */\n  private calculateContrastRatio(luminance1: number, luminance2: number): number {\n    const lighter = Math.max(luminance1, luminance2);\n    const darker = Math.min(luminance1, luminance2);\n    return (lighter + 0.05) / (darker + 0.05);\n  }\n} ",
+            "properties": [
+                {
+                    "name": "dark",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "string",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 6
+                },
+                {
+                    "name": "light",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "string",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 5
+                },
+                {
+                    "name": "primary",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "string",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 4
+                }
+            ],
+            "indexSignatures": [],
+            "kind": 171,
+            "methods": [],
+            "extends": []
+        }
+    ],
+    "injectables": [
+        {
+            "name": "SimpleColorService",
+            "id": "injectable-SimpleColorService-acb8c0d17fe5cdcf3d90e6ec9c1e4038570f6f5586eb87d83c4f59817ae9a89654172c06b5b6dee8b5fdac9f67440d9d5df60d33dfe374a6ac44e14bec374858",
+            "file": "src/app/services/simple-color.service.ts",
+            "properties": [],
+            "methods": [
+                {
+                    "name": "calculateContrastRatio",
+                    "args": [
+                        {
+                            "name": "luminance1",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        },
+                        {
+                            "name": "luminance2",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "number",
+                    "typeParameters": [],
+                    "line": 177,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\n\nCalculate contrast ratio between two luminances\n",
+                    "description": "<p>Calculate contrast ratio between two luminances</p>\n",
+                    "modifierKind": [
+                        123
+                    ],
+                    "jsdoctags": [
+                        {
+                            "name": "luminance1",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        },
+                        {
+                            "name": "luminance2",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "calculateLuminance",
+                    "args": [
+                        {
+                            "name": "r",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        },
+                        {
+                            "name": "g",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        },
+                        {
+                            "name": "b",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "number",
+                    "typeParameters": [],
+                    "line": 40,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\n\nCalculate luminance\n",
+                    "description": "<p>Calculate luminance</p>\n",
+                    "modifierKind": [
+                        123
+                    ],
+                    "jsdoctags": [
+                        {
+                            "name": "r",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        },
+                        {
+                            "name": "g",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        },
+                        {
+                            "name": "b",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "generateColorVariations",
+                    "args": [
+                        {
+                            "name": "primaryColor",
+                            "type": "string",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "ColorVariations",
+                    "typeParameters": [],
+                    "line": 51,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\n\nGenerate light and dark variations - simple approach\n",
+                    "description": "<p>Generate light and dark variations - simple approach</p>\n",
+                    "jsdoctags": [
+                        {
+                            "name": "primaryColor",
+                            "type": "string",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "getCurrentColors",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "ColorVariations",
+                    "typeParameters": [],
+                    "line": 112,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\n\nGet current colors\n",
+                    "description": "<p>Get current colors</p>\n"
+                },
+                {
+                    "name": "getLuminanceValues",
+                    "args": [
+                        {
+                            "name": "variations",
+                            "type": "ColorVariations",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "literal type",
+                    "typeParameters": [],
+                    "line": 135,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\n\nGet luminance values for debugging\n",
+                    "description": "<p>Get luminance values for debugging</p>\n",
+                    "jsdoctags": [
+                        {
+                            "name": "variations",
+                            "type": "ColorVariations",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "getTextColor",
+                    "args": [
+                        {
+                            "name": "backgroundColor",
+                            "type": "string",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "string",
+                    "typeParameters": [],
+                    "line": 151,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\n\nGet the best text color (black or white) for a given background color\nEnsures WCAG AA compliance (4.5:1 contrast ratio)\n",
+                    "description": "<p>Get the best text color (black or white) for a given background color\nEnsures WCAG AA compliance (4.5:1 contrast ratio)</p>\n",
+                    "jsdoctags": [
+                        {
+                            "name": "backgroundColor",
+                            "type": "string",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "hexToRgb",
+                    "args": [
+                        {
+                            "name": "hex",
+                            "type": "string",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "literal type",
+                    "typeParameters": [],
+                    "line": 19,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\n\nParse hex color to RGB\n",
+                    "description": "<p>Parse hex color to RGB</p>\n",
+                    "modifierKind": [
+                        123
+                    ],
+                    "jsdoctags": [
+                        {
+                            "name": "hex",
+                            "type": "string",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "isValidColor",
+                    "args": [
+                        {
+                            "name": "color",
+                            "type": "string",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "boolean",
+                    "typeParameters": [],
+                    "line": 126,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\n\nValidate color\n",
+                    "description": "<p>Validate color</p>\n",
+                    "jsdoctags": [
+                        {
+                            "name": "color",
+                            "type": "string",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "rgbToHex",
+                    "args": [
+                        {
+                            "name": "r",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        },
+                        {
+                            "name": "g",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        },
+                        {
+                            "name": "b",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "string",
+                    "typeParameters": [],
+                    "line": 33,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\n\nConvert RGB to hex\n",
+                    "description": "<p>Convert RGB to hex</p>\n",
+                    "modifierKind": [
+                        123
+                    ],
+                    "jsdoctags": [
+                        {
+                            "name": "r",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        },
+                        {
+                            "name": "g",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        },
+                        {
+                            "name": "b",
+                            "type": "number",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "setPrimaryColor",
+                    "args": [
+                        {
+                            "name": "color",
+                            "type": "string",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 104,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\n\nSet a new primary color\n",
+                    "description": "<p>Set a new primary color</p>\n",
+                    "jsdoctags": [
+                        {
+                            "name": "color",
+                            "type": "string",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "updatePrimaryColors",
+                    "args": [
+                        {
+                            "name": "variations",
+                            "type": "ColorVariations",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 90,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "rawdescription": "\n\nUpdate CSS custom properties\n",
+                    "description": "<p>Update CSS custom properties</p>\n",
+                    "jsdoctags": [
+                        {
+                            "name": "variations",
+                            "type": "ColorVariations",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "description": "",
+            "rawdescription": "\n",
+            "sourceCode": "import { Injectable } from '@angular/core';\n\nexport interface ColorVariations {\n  primary: string;\n  light: string;\n  dark: string;\n}\n\n@Injectable({\n  providedIn: 'root'\n})\nexport class SimpleColorService {\n\n  constructor() { }\n\n  /**\n   * Parse hex color to RGB\n   */\n  private hexToRgb(hex: string): { r: number; g: number; b: number } {\n    const result = /^#?([a-f\\d]{2})([a-f\\d]{2})([a-f\\d]{2})$/i.exec(hex);\n    if (!result) return { r: 0, g: 0, b: 0 };\n    \n    return {\n      r: parseInt(result[1], 16),\n      g: parseInt(result[2], 16),\n      b: parseInt(result[3], 16)\n    };\n  }\n\n  /**\n   * Convert RGB to hex\n   */\n  private rgbToHex(r: number, g: number, b: number): string {\n    return \"#\" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);\n  }\n\n  /**\n   * Calculate luminance\n   */\n  private calculateLuminance(r: number, g: number, b: number): number {\n    const [rs, gs, bs] = [r, g, b].map(c => {\n      c = c / 255;\n      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);\n    });\n    return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;\n  }\n\n  /**\n   * Generate light and dark variations - simple approach\n   */\n  generateColorVariations(primaryColor: string): ColorVariations {\n    const rgb = this.hexToRgb(primaryColor);\n    const luminance = this.calculateLuminance(rgb.r, rgb.g, rgb.b);\n    \n    // Simple light variant: move towards white\n    const lightRgb = {\n      r: Math.round(rgb.r + (255 - rgb.r) * 0.85),\n      g: Math.round(rgb.g + (255 - rgb.g) * 0.85),\n      b: Math.round(rgb.b + (255 - rgb.b) * 0.85)\n    };\n    \n    // Simple dark variant: move towards black\n    // Make it darker for very light primary colors\n    const darkFactor = luminance > 0.4 ? 0.8 : 0.9;\n    const darkRgb = {\n      r: Math.round(rgb.r * darkFactor),\n      g: Math.round(rgb.g * darkFactor),\n      b: Math.round(rgb.b * darkFactor)\n    };\n    \n    // Ensure dark variant is dark enough for accessibility\n    const darkLuminance = this.calculateLuminance(darkRgb.r, darkRgb.g, darkRgb.b);\n    if (darkLuminance > 0.15) {\n      // Make it darker\n      darkRgb.r = Math.round(darkRgb.r * 0.9);\n      darkRgb.g = Math.round(darkRgb.g * 0.9);\n      darkRgb.b = Math.round(darkRgb.b * 0.9);\n    }\n    \n    return {\n      primary: primaryColor,\n      light: this.rgbToHex(lightRgb.r, lightRgb.g, lightRgb.b),\n      dark: this.rgbToHex(darkRgb.r, darkRgb.g, darkRgb.b)\n    };\n  }\n\n  /**\n   * Update CSS custom properties\n   */\n  updatePrimaryColors(variations: ColorVariations): void {\n    const root = document.documentElement;\n    root.style.setProperty('--color-primary', variations.primary);\n    root.style.setProperty('--color-primary-light', variations.light);\n    root.style.setProperty('--color-primary-dark', variations.dark);\n    \n    // Set text color for text on primary background\n    const primaryTextColor = this.getTextColor(variations.primary);\n    root.style.setProperty('--color-text-on-primary', primaryTextColor);\n  }\n\n  /**\n   * Set a new primary color\n   */\n  setPrimaryColor(color: string): void {\n    const variations = this.generateColorVariations(color);\n    this.updatePrimaryColors(variations);\n  }\n\n  /**\n   * Get current colors\n   */\n  getCurrentColors(): ColorVariations {\n    const root = document.documentElement;\n    const computedStyle = getComputedStyle(root);\n    \n    return {\n      primary: computedStyle.getPropertyValue('--color-primary').trim(),\n      light: computedStyle.getPropertyValue('--color-primary-light').trim(),\n      dark: computedStyle.getPropertyValue('--color-primary-dark').trim()\n    };\n  }\n\n  /**\n   * Validate color\n   */\n  isValidColor(color: string): boolean {\n    const s = new Option().style;\n    s.color = color;\n    return s.color !== '';\n  }\n\n  /**\n   * Get luminance values for debugging\n   */\n  getLuminanceValues(variations: ColorVariations): { primary: number; light: number; dark: number } {\n    const primaryRgb = this.hexToRgb(variations.primary);\n    const lightRgb = this.hexToRgb(variations.light);\n    const darkRgb = this.hexToRgb(variations.dark);\n    \n    return {\n      primary: this.calculateLuminance(primaryRgb.r, primaryRgb.g, primaryRgb.b),\n      light: this.calculateLuminance(lightRgb.r, lightRgb.g, lightRgb.b),\n      dark: this.calculateLuminance(darkRgb.r, darkRgb.g, darkRgb.b)\n    };\n  }\n\n  /**\n   * Get the best text color (black or white) for a given background color\n   * Ensures WCAG AA compliance (4.5:1 contrast ratio)\n   */\n  getTextColor(backgroundColor: string): string {\n    const rgb = this.hexToRgb(backgroundColor);\n    const bgLuminance = this.calculateLuminance(rgb.r, rgb.g, rgb.b);\n    \n    // Calculate contrast ratios for both black and white text\n    const blackTextLuminance = 0;\n    const whiteTextLuminance = 1;\n    \n    const blackContrast = this.calculateContrastRatio(bgLuminance, blackTextLuminance);\n    const whiteContrast = this.calculateContrastRatio(bgLuminance, whiteTextLuminance);\n    \n    // Use the color with better contrast ratio, ensuring AA compliance (4.5:1)\n    // Very strongly prefer white text for colored backgrounds\n    if (blackContrast >= 4.5 && blackContrast > whiteContrast * 3.0) {\n      return '#000000';\n    } else if (whiteContrast >= 4.5) {\n      return '#ffffff';\n    } else {\n      // If neither meets AA, still prefer white text unless black is much better\n      return blackContrast > whiteContrast * 1.5 ? '#000000' : '#ffffff';\n    }\n  }\n\n  /**\n   * Calculate contrast ratio between two luminances\n   */\n  private calculateContrastRatio(luminance1: number, luminance2: number): number {\n    const lighter = Math.max(luminance1, luminance2);\n    const darker = Math.min(luminance1, luminance2);\n    return (lighter + 0.05) / (darker + 0.05);\n  }\n} ",
+            "constructorObj": {
+                "name": "constructor",
+                "description": "",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "args": [],
+                "line": 12
+            },
+            "extends": [],
+            "type": "injectable"
+        }
+    ],
+    "guards": [],
+    "interceptors": [],
+    "classes": [],
+    "directives": [],
+    "components": [
+        {
+            "name": "AppComponent",
+            "id": "component-AppComponent-d491b944adbe9008190afcd9cc15ff1fcd7692738ddf8e622b239bfde1937c3353aa8b7d74dc2b22870451cb0ed8418ff02bc7cc229802eaefd2a4218b32f414",
+            "file": "src/app/app.ts",
+            "encapsulation": [],
+            "entryComponents": [],
+            "inputs": [],
+            "outputs": [],
+            "providers": [],
+            "selector": "app-root",
+            "styleUrls": [],
+            "styles": [],
+            "template": "<app-design-system-demo></app-design-system-demo>\n",
+            "templateUrl": [],
+            "viewProviders": [],
+            "hostDirectives": [],
+            "inputsClass": [],
+            "outputsClass": [],
+            "propertiesClass": [
+                {
+                    "name": "title",
+                    "defaultValue": "'ds-exploration'",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "string",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 15
+                }
+            ],
+            "methodsClass": [],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "hostBindings": [],
+            "hostListeners": [],
+            "standalone": true,
+            "imports": [
+                {
+                    "name": "CommonModule",
+                    "type": "module"
+                },
+                {
+                    "name": "DesignSystemDemoComponent",
+                    "type": "component"
+                }
+            ],
+            "description": "",
+            "rawdescription": "\n",
+            "type": "component",
+            "sourceCode": "import { Component } from '@angular/core';\nimport { CommonModule } from '@angular/common';\nimport { DesignSystemDemoComponent } from './components/design-system-demo.component';\n\n@Component({\n  selector: 'app-root',\n  standalone: true,\n  imports: [CommonModule, DesignSystemDemoComponent],\n  template: `\n    <app-design-system-demo></app-design-system-demo>\n  `,\n  styles: []\n})\nexport class AppComponent {\n  title = 'ds-exploration';\n}\n",
+            "assetsDirs": [],
+            "styleUrlsData": "",
+            "stylesData": "",
+            "extends": []
+        },
+        {
+            "name": "DesignSystemDemoComponent",
+            "id": "component-DesignSystemDemoComponent-f46760ff35097d771e69795d85c5e67c43d3e81a4919825106870482db9df7877f043eab22cbc89f5fcf16c20a0f2ebfa8461e6d8c8d1c7fa3c2d65d99a433ea",
+            "file": "src/app/components/design-system-demo.component.ts",
+            "encapsulation": [],
+            "entryComponents": [],
+            "inputs": [],
+            "outputs": [],
+            "providers": [],
+            "selector": "app-design-system-demo",
+            "styleUrls": [],
+            "styles": [],
+            "template": "<div class=\"min-h-screen bg-bg-secondary flex items-center justify-center p-8\">\n  <div class=\"max-w-6xl w-full mx-auto px-4\">\n\n    <!-- Header -->\n    <div class=\"text-center mb-12\">\n      <h1 class=\"text-4xl font-bold text-text-primary mb-6\">\n        Design System Demo\n      </h1>\n      <p class=\"text-text-secondary text-lg\">\n        Dynamic color system with custom design tokens\n      </p>\n    </div>\n\n    <!-- Color Picker Section -->\n    <div class=\"bg-bg-primary rounded-xl shadow-lg p-8 mb-8\">\n      <h2 class=\"text-2xl font-semibold text-text-primary mb-4\">\n        Color Customization\n      </h2>\n\n      <div class=\"flex items-center gap-8\">\n        <!-- Color Picker -->\n        <div class=\"flex flex-col gap-4\">\n          <label class=\"text-text-primary font-medium\">Primary Color:</label>\n          <input\n            type=\"color\"\n            [value]=\"currentColors.primary\"\n            (input)=\"onColorChange($event)\"\n            class=\"w-20 h-16 rounded-lg border-2 border-border-primary cursor-pointer\"\n          >\n        </div>\n\n        <!-- Custom Color Input -->\n        <div class=\"flex flex-col gap-4\">\n          <label class=\"text-text-primary font-medium\">Custom Hex:</label>\n          <input\n            type=\"text\"\n            [value]=\"currentColors.primary\"\n            (input)=\"onCustomColorChange($event)\"\n            placeholder=\"#3b82f6\"\n            class=\"px-4 py-2 border border-border-primary rounded-lg focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-primary/20\"\n          >\n        </div>\n      </div>\n    </div>\n\n    <!-- Color Variants Display -->\n    <div class=\"bg-bg-primary rounded-xl shadow-lg p-8 mb-8\">\n      <h2 class=\"text-2xl font-semibold text-text-primary mb-4\">\n        Color Variants\n      </h2>\n\n      <div class=\"grid grid-cols-3 gap-6\">\n        <!-- Primary -->\n        <div class=\"text-center\">\n          <div\n            class=\"w-20 h-16 rounded-lg mb-2 mx-auto\"\n            [style.background-color]=\"currentColors.primary\"\n          ></div>\n          <p class=\"text-text-primary font-medium\">Primary</p>\n          <p class=\"text-text-secondary text-sm\">{{ currentColors.primary }}</p>\n          <p class=\"text-text-secondary text-xs\">Luminance: {{ luminanceValues.primary.toFixed(3) }}</p>\n        </div>\n\n        <!-- Light -->\n        <div class=\"text-center\">\n          <div\n            class=\"w-20 h-16 rounded-lg mb-2 mx-auto\"\n            [style.background-color]=\"currentColors.light\"\n          ></div>\n          <p class=\"text-text-primary font-medium\">Light</p>\n          <p class=\"text-text-secondary text-sm\">{{ currentColors.light }}</p>\n          <p class=\"text-text-secondary text-xs\">Luminance: {{ luminanceValues.light.toFixed(3) }}</p>\n        </div>\n\n        <!-- Dark -->\n        <div class=\"text-center\">\n          <div\n            class=\"w-20 h-16 rounded-lg mb-2 mx-auto\"\n            [style.background-color]=\"currentColors.dark\"\n          ></div>\n          <p class=\"text-text-primary font-medium\">Dark</p>\n          <p class=\"text-text-secondary text-sm\">{{ currentColors.dark }}</p>\n          <p class=\"text-text-secondary text-xs\">Luminance: {{ luminanceValues.dark.toFixed(3) }}</p>\n        </div>\n      </div>\n    </div>\n\n    <!-- Button Examples -->\n    <div class=\"bg-bg-primary rounded-xl shadow-lg p-8\">\n      <h2 class=\"text-2xl font-semibold text-text-primary mb-4\">\n        Button Components\n      </h2>\n\n      <div class=\"space-y-6\">\n\n        <!-- Spartan UI Buttons -->\n        <div>\n          <h3 class=\"text-lg font-medium text-text-primary mb-3\">Spartan UI Buttons</h3>\n          <div class=\"flex gap-4 flex-wrap\">\n            <button hlmBtn variant=\"default\">Default Button</button>\n            <button hlmBtn variant=\"destructive\">Destructive Button</button>\n            <button hlmBtn variant=\"outline\">Outline Button</button>\n            <button hlmBtn variant=\"secondary\">Secondary Button</button>\n            <button hlmBtn variant=\"ghost\">Ghost Button</button>\n            <button hlmBtn variant=\"link\">Link Button</button>\n          </div>\n        </div>\n\n\n\n        <!-- Button Sizes -->\n        <div>\n          <h3 class=\"text-lg font-medium text-text-primary mb-3\">Button Sizes</h3>\n          <div class=\"flex gap-4 items-center\">\n            <button hlmBtn size=\"sm\">Small</button>\n            <button hlmBtn size=\"default\">Default</button>\n            <button hlmBtn size=\"lg\">Large</button>\n            <button hlmBtn size=\"icon\">🔍</button>\n          </div>\n        </div>\n      </div>\n    </div>\n  </div>\n</div>\n",
+            "templateUrl": [],
+            "viewProviders": [],
+            "hostDirectives": [],
+            "inputsClass": [],
+            "outputsClass": [],
+            "propertiesClass": [
+                {
+                    "name": "colorService",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "ColorService",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 153,
+                    "modifierKind": [
+                        125
+                    ]
+                },
+                {
+                    "name": "currentColors",
+                    "defaultValue": "{\n    primary: '',\n    light: '',\n    dark: ''\n  }",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "ColorVariations",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 141
+                },
+                {
+                    "name": "luminanceValues",
+                    "defaultValue": "{\n    primary: 0,\n    light: 0,\n    dark: 0\n  }",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "object",
+                    "indexKey": "",
+                    "optional": false,
+                    "description": "",
+                    "line": 147
+                }
+            ],
+            "methodsClass": [
+                {
+                    "name": "ngOnInit",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 155,
+                    "deprecated": false,
+                    "deprecationMessage": ""
+                },
+                {
+                    "name": "onColorChange",
+                    "args": [
+                        {
+                            "name": "event",
+                            "type": "Event",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 160,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "jsdoctags": [
+                        {
+                            "name": "event",
+                            "type": "Event",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "onCustomColorChange",
+                    "args": [
+                        {
+                            "name": "event",
+                            "type": "Event",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 167,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "jsdoctags": [
+                        {
+                            "name": "event",
+                            "type": "Event",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "onHover",
+                    "args": [
+                        {
+                            "name": "event",
+                            "type": "Event",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 182,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "jsdoctags": [
+                        {
+                            "name": "event",
+                            "type": "Event",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "onLeave",
+                    "args": [
+                        {
+                            "name": "event",
+                            "type": "Event",
+                            "deprecated": false,
+                            "deprecationMessage": ""
+                        }
+                    ],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 197,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "jsdoctags": [
+                        {
+                            "name": "event",
+                            "type": "Event",
+                            "deprecated": false,
+                            "deprecationMessage": "",
+                            "tagName": {
+                                "text": "param"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "updateLuminanceValues",
+                    "args": [],
+                    "optional": false,
+                    "returnType": "void",
+                    "typeParameters": [],
+                    "line": 178,
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "modifierKind": [
+                        123
+                    ]
+                }
+            ],
+            "deprecated": false,
+            "deprecationMessage": "",
+            "hostBindings": [],
+            "hostListeners": [],
+            "standalone": true,
+            "imports": [
+                {
+                    "name": "CommonModule",
+                    "type": "module"
+                },
+                {
+                    "name": "FormsModule",
+                    "type": "module"
+                },
+                {
+                    "name": "HlmButtonDirective",
+                    "type": "directive"
+                }
+            ],
+            "description": "",
+            "rawdescription": "\n",
+            "type": "component",
+            "sourceCode": "import { Component, OnInit } from '@angular/core';\nimport { CommonModule } from '@angular/common';\nimport { FormsModule } from '@angular/forms';\n//import { ColorService, ColorVariations } from '../services/color.service';\nimport { SimpleColorService as ColorService, ColorVariations } from '../services/simple-color.service';\nimport { HlmButtonDirective } from '../../../libs/ui/ui-button-helm/src/lib/hlm-button.directive';\n\n@Component({\n  selector: 'app-design-system-demo',\n  standalone: true,\n  imports: [CommonModule, FormsModule, HlmButtonDirective],\n  template: `\n    <div class=\"min-h-screen bg-bg-secondary flex items-center justify-center p-8\">\n      <div class=\"max-w-6xl w-full mx-auto px-4\">\n        \n        <!-- Header -->\n        <div class=\"text-center mb-12\">\n          <h1 class=\"text-4xl font-bold text-text-primary mb-6\">\n            Design System Demo\n          </h1>\n          <p class=\"text-text-secondary text-lg\">\n            Dynamic color system with custom design tokens\n          </p>\n        </div>\n\n        <!-- Color Picker Section -->\n        <div class=\"bg-bg-primary rounded-xl shadow-lg p-8 mb-8\">\n          <h2 class=\"text-2xl font-semibold text-text-primary mb-4\">\n            Color Customization\n          </h2>\n          \n          <div class=\"flex items-center gap-8\">\n            <!-- Color Picker -->\n            <div class=\"flex flex-col gap-4\">\n              <label class=\"text-text-primary font-medium\">Primary Color:</label>\n              <input \n                type=\"color\" \n                [value]=\"currentColors.primary\"\n                (input)=\"onColorChange($event)\"\n                class=\"w-20 h-16 rounded-lg border-2 border-border-primary cursor-pointer\"\n              >\n            </div>\n            \n            <!-- Custom Color Input -->\n            <div class=\"flex flex-col gap-4\">\n              <label class=\"text-text-primary font-medium\">Custom Hex:</label>\n              <input \n                type=\"text\" \n                [value]=\"currentColors.primary\"\n                (input)=\"onCustomColorChange($event)\"\n                placeholder=\"#3b82f6\"\n                class=\"px-4 py-2 border border-border-primary rounded-lg focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-primary/20\"\n              >\n            </div>\n          </div>\n        </div>\n\n        <!-- Color Variants Display -->\n        <div class=\"bg-bg-primary rounded-xl shadow-lg p-8 mb-8\">\n          <h2 class=\"text-2xl font-semibold text-text-primary mb-4\">\n            Color Variants\n          </h2>\n          \n          <div class=\"grid grid-cols-3 gap-6\">\n            <!-- Primary -->\n            <div class=\"text-center\">\n              <div \n                class=\"w-20 h-16 rounded-lg mb-2 mx-auto\"\n                [style.background-color]=\"currentColors.primary\"\n              ></div>\n              <p class=\"text-text-primary font-medium\">Primary</p>\n              <p class=\"text-text-secondary text-sm\">{{ currentColors.primary }}</p>\n              <p class=\"text-text-secondary text-xs\">Luminance: {{ luminanceValues.primary.toFixed(3) }}</p>\n            </div>\n            \n            <!-- Light -->\n            <div class=\"text-center\">\n              <div \n                class=\"w-20 h-16 rounded-lg mb-2 mx-auto\"\n                [style.background-color]=\"currentColors.light\"\n              ></div>\n              <p class=\"text-text-primary font-medium\">Light</p>\n              <p class=\"text-text-secondary text-sm\">{{ currentColors.light }}</p>\n              <p class=\"text-text-secondary text-xs\">Luminance: {{ luminanceValues.light.toFixed(3) }}</p>\n            </div>\n            \n            <!-- Dark -->\n            <div class=\"text-center\">\n              <div \n                class=\"w-20 h-16 rounded-lg mb-2 mx-auto\"\n                [style.background-color]=\"currentColors.dark\"\n              ></div>\n              <p class=\"text-text-primary font-medium\">Dark</p>\n              <p class=\"text-text-secondary text-sm\">{{ currentColors.dark }}</p>\n              <p class=\"text-text-secondary text-xs\">Luminance: {{ luminanceValues.dark.toFixed(3) }}</p>\n            </div>\n          </div>\n        </div>\n\n        <!-- Button Examples -->\n        <div class=\"bg-bg-primary rounded-xl shadow-lg p-8\">\n          <h2 class=\"text-2xl font-semibold text-text-primary mb-4\">\n            Button Components\n          </h2>\n          \n          <div class=\"space-y-6\">\n\n            <!-- Spartan UI Buttons -->\n            <div>\n              <h3 class=\"text-lg font-medium text-text-primary mb-3\">Spartan UI Buttons</h3>\n              <div class=\"flex gap-4 flex-wrap\">\n                <button hlmBtn variant=\"default\">Default Button</button>\n                <button hlmBtn variant=\"destructive\">Destructive Button</button>\n                <button hlmBtn variant=\"outline\">Outline Button</button>\n                <button hlmBtn variant=\"secondary\">Secondary Button</button>\n                <button hlmBtn variant=\"ghost\">Ghost Button</button>\n                <button hlmBtn variant=\"link\">Link Button</button>\n              </div>\n            </div>\n\n\n\n            <!-- Button Sizes -->\n            <div>\n              <h3 class=\"text-lg font-medium text-text-primary mb-3\">Button Sizes</h3>\n              <div class=\"flex gap-4 items-center\">\n                <button hlmBtn size=\"sm\">Small</button>\n                <button hlmBtn size=\"default\">Default</button>\n                <button hlmBtn size=\"lg\">Large</button>\n                <button hlmBtn size=\"icon\">🔍</button>\n              </div>\n            </div>\n          </div>\n        </div>\n      </div>\n    </div>\n  `,\n  styles: []\n})\nexport class DesignSystemDemoComponent implements OnInit {\n  currentColors: ColorVariations = {\n    primary: '',\n    light: '',\n    dark: ''\n  };\n\n  luminanceValues = {\n    primary: 0,\n    light: 0,\n    dark: 0\n  };\n\n  constructor(public colorService: ColorService) {}\n\n  ngOnInit(): void {\n    this.currentColors = this.colorService.getCurrentColors();\n    this.updateLuminanceValues();\n  }\n\n  onColorChange(event: Event): void {\n    const target = event.target as HTMLInputElement;\n    this.colorService.setPrimaryColor(target.value);\n    this.currentColors = this.colorService.getCurrentColors();\n    this.updateLuminanceValues();\n  }\n\n  onCustomColorChange(event: Event): void {\n    const target = event.target as HTMLInputElement;\n    const color = target.value;\n    \n    if (this.colorService.isValidColor(color)) {\n      this.colorService.setPrimaryColor(color);\n      this.currentColors = this.colorService.getCurrentColors();\n      this.updateLuminanceValues();\n    }\n  }\n\n  private updateLuminanceValues(): void {\n    this.luminanceValues = this.colorService.getLuminanceValues(this.currentColors);\n  }\n\n  onHover(event: Event): void {\n    const button = event.target as HTMLButtonElement;\n    const currentBg = button.style.backgroundColor;\n    const currentColor = button.style.color;\n    \n    if (currentBg && currentBg !== 'transparent') {\n      // This is the primary button\n      button.style.backgroundColor = this.currentColors.dark;\n    } else {\n      // This is the secondary button\n      button.style.backgroundColor = this.currentColors.primary;\n      button.style.color = 'white';\n    }\n  }\n\n  onLeave(event: Event): void {\n    const button = event.target as HTMLButtonElement;\n    const originalBg = button.style.backgroundColor;\n    \n    if (originalBg === this.currentColors.dark) {\n      // Restore primary button\n      button.style.backgroundColor = this.currentColors.primary;\n    } else {\n      // Restore secondary button\n      button.style.backgroundColor = 'transparent';\n      button.style.color = this.currentColors.primary;\n    }\n  }\n} ",
+            "assetsDirs": [],
+            "styleUrlsData": "",
+            "stylesData": "",
+            "constructorObj": {
+                "name": "constructor",
+                "description": "",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "args": [
+                    {
+                        "name": "colorService",
+                        "type": "ColorService",
+                        "deprecated": false,
+                        "deprecationMessage": ""
+                    }
+                ],
+                "line": 151,
+                "jsdoctags": [
+                    {
+                        "name": "colorService",
+                        "type": "ColorService",
+                        "deprecated": false,
+                        "deprecationMessage": "",
+                        "tagName": {
+                            "text": "param"
+                        }
+                    }
+                ]
+            },
+            "extends": [],
+            "implements": [
+                "OnInit"
+            ]
+        }
+    ],
+    "modules": [],
+    "miscellaneous": {
+        "variables": [
+            {
+                "name": "appConfig",
+                "ctype": "miscellaneous",
+                "subtype": "variable",
+                "file": "src/app/app.config.ts",
+                "deprecated": false,
+                "deprecationMessage": "",
+                "type": "ApplicationConfig",
+                "defaultValue": "{\n  providers: [\n    provideBrowserGlobalErrorListeners(),\n    provideZoneChangeDetection({ eventCoalescing: true }),\n    \n  ]\n}"
+            }
+        ],
+        "functions": [],
+        "typealiases": [],
+        "enumerations": [],
+        "groupedVariables": {
+            "src/app/app.config.ts": [
+                {
+                    "name": "appConfig",
+                    "ctype": "miscellaneous",
+                    "subtype": "variable",
+                    "file": "src/app/app.config.ts",
+                    "deprecated": false,
+                    "deprecationMessage": "",
+                    "type": "ApplicationConfig",
+                    "defaultValue": "{\n  providers: [\n    provideBrowserGlobalErrorListeners(),\n    provideZoneChangeDetection({ eventCoalescing: true }),\n    \n  ]\n}"
+                }
+            ]
+        },
+        "groupedFunctions": {},
+        "groupedEnumerations": {},
+        "groupedTypeAliases": {}
+    },
+    "routes": [],
+    "coverage": {
+        "count": 16,
+        "status": "low",
+        "files": [
+            {
+                "filePath": "src/app/app.config.ts",
+                "type": "variable",
+                "linktype": "miscellaneous",
+                "linksubtype": "variable",
+                "name": "appConfig",
+                "coveragePercent": 0,
+                "coverageCount": "0/1",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/app.ts",
+                "type": "component",
+                "linktype": "component",
+                "name": "AppComponent",
+                "coveragePercent": 0,
+                "coverageCount": "0/2",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/components/design-system-demo.component.ts",
+                "type": "component",
+                "linktype": "component",
+                "name": "DesignSystemDemoComponent",
+                "coveragePercent": 0,
+                "coverageCount": "0/11",
+                "status": "low"
+            },
+            {
+                "filePath": "src/app/services/simple-color.service.ts",
+                "type": "injectable",
+                "linktype": "injectable",
+                "name": "SimpleColorService",
+                "coveragePercent": 84,
+                "coverageCount": "11/13",
+                "status": "very-good"
+            },
+            {
+                "filePath": "src/app/services/simple-color.service.ts",
+                "type": "interface",
+                "linktype": "interface",
+                "name": "ColorVariations",
+                "coveragePercent": 0,
+                "coverageCount": "0/4",
+                "status": "low"
+            }
+        ]
+    }
+}
