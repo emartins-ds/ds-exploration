@@ -161,15 +161,22 @@ export class SimpleColorService {
     const blackContrast = this.calculateContrastRatio(bgLuminance, blackTextLuminance);
     const whiteContrast = this.calculateContrastRatio(bgLuminance, whiteTextLuminance);
     
-    // Use the color with better contrast ratio, ensuring AA compliance (4.5:1)
-    // Very strongly prefer white text for colored backgrounds
-    if (blackContrast >= 4.5 && blackContrast > whiteContrast * 3.0) {
+    // Prefer white text for colored backgrounds while ensuring good readability
+    const AA_THRESHOLD = 4.5;
+    const CONTRAST_PREFERENCE_WHEN_COMPLIANT = 3.0;  // How much better black must be to override compliant white
+    const CONTRAST_PREFERENCE_WHEN_NEITHER = 1.5;    // How much better black must be when neither is compliant
+    
+    // If white text meets AA standard, prefer it over black
+    if (whiteContrast >= AA_THRESHOLD) {
+      return blackContrast > whiteContrast * CONTRAST_PREFERENCE_WHEN_COMPLIANT ? '#000000' : '#ffffff';
+    }
+    // If only black text meets AA standard, use it
+    else if (blackContrast >= AA_THRESHOLD) {
       return '#000000';
-    } else if (whiteContrast >= 4.5) {
-      return '#ffffff';
-    } else {
-      // If neither meets AA, still prefer white text unless black is much better
-      return blackContrast > whiteContrast * 1.5 ? '#000000' : '#ffffff';
+    }
+    // Neither meets AA - choose better option with slight preference for white
+    else {
+      return blackContrast > whiteContrast * CONTRAST_PREFERENCE_WHEN_NEITHER ? '#000000' : '#ffffff';
     }
   }
 

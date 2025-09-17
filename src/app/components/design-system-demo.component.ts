@@ -10,8 +10,8 @@ import { HlmButtonDirective } from '../../../libs/ui/ui-button-helm/src/lib/hlm-
   standalone: true,
   imports: [CommonModule, FormsModule, HlmButtonDirective],
   template: `
-    <div class="min-h-screen bg-bg-secondary flex items-center justify-center p-lg">
-      <div class="max-w-6xl w-full mx-auto px-md">
+    <div class="min-h-screen bg-bg-secondary flex items-center justify-end p-lg">
+      <div class="max-w-6xl w-full mr-0 ml-auto px-md">
         
         <!-- Color Picker and Variants Section -->
         <div class="bg-bg-primary rounded-xl shadow-md p-lg mb-xl">

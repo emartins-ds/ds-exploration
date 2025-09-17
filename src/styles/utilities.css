@@ -1,47 +1,44 @@
 /* ===== CUSTOM UTILITY MAPPINGS ===== */
 /* These map spacing tokens to shorter class names (removes "spacing" prefix) */
 
-@utility margin {
-  xs: var(--spacing-xs);
-  sm: var(--spacing-sm);
-  md: var(--spacing-md);
-  lg: var(--spacing-lg);
-  xl: var(--spacing-xl);
-  2xl: var(--spacing-2xl);
-  3xl: var(--spacing-3xl);
-  4xl: var(--spacing-4xl);
-}
+/* Note: @utility directive is a Tailwind CSS v4 feature that may not be fully supported yet */
+/* For now, we'll use standard CSS custom properties */
 
-@utility padding {
-  xs: var(--spacing-xs);
-  sm: var(--spacing-sm);
-  md: var(--spacing-md);
-  lg: var(--spacing-lg);
-  xl: var(--spacing-xl);
-  2xl: var(--spacing-2xl);
-  3xl: var(--spacing-3xl);
-  4xl: var(--spacing-4xl);
-}
-
-@utility gap {
-  xs: var(--spacing-xs);
-  sm: var(--spacing-sm);
-  md: var(--spacing-md);
-  lg: var(--spacing-lg);
-  xl: var(--spacing-xl);
-  2xl: var(--spacing-2xl);
-  3xl: var(--spacing-3xl);
-  4xl: var(--spacing-4xl);
-}
-
-@utility space {
-  xs: var(--spacing-xs);
-  sm: var(--spacing-sm);
-  md: var(--spacing-md);
-  lg: var(--spacing-lg);
-  xl: var(--spacing-xl);
-  2xl: var(--spacing-2xl);
-  3xl: var(--spacing-3xl);
-  4xl: var(--spacing-4xl);
+:root {
+  --margin-xs: var(--spacing-xs);
+  --margin-sm: var(--spacing-sm);
+  --margin-md: var(--spacing-md);
+  --margin-lg: var(--spacing-lg);
+  --margin-xl: var(--spacing-xl);
+  --margin-2xl: var(--spacing-2xl);
+  --margin-3xl: var(--spacing-3xl);
+  --margin-4xl: var(--spacing-4xl);
+  
+  --padding-xs: var(--spacing-xs);
+  --padding-sm: var(--spacing-sm);
+  --padding-md: var(--spacing-md);
+  --padding-lg: var(--spacing-lg);
+  --padding-xl: var(--spacing-xl);
+  --padding-2xl: var(--spacing-2xl);
+  --padding-3xl: var(--spacing-3xl);
+  --padding-4xl: var(--spacing-4xl);
+  
+  --gap-xs: var(--spacing-xs);
+  --gap-sm: var(--spacing-sm);
+  --gap-md: var(--spacing-md);
+  --gap-lg: var(--spacing-lg);
+  --gap-xl: var(--spacing-xl);
+  --gap-2xl: var(--spacing-2xl);
+  --gap-3xl: var(--spacing-3xl);
+  --gap-4xl: var(--spacing-4xl);
+  
+  --space-xs: var(--spacing-xs);
+  --space-sm: var(--spacing-sm);
+  --space-md: var(--spacing-md);
+  --space-lg: var(--spacing-lg);
+  --space-xl: var(--spacing-xl);
+  --space-2xl: var(--spacing-2xl);
+  --space-3xl: var(--spacing-3xl);
+  --space-4xl: var(--spacing-4xl);
 }
 
